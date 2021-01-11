@@ -1,0 +1,565 @@
+---
+title: "Traffic Accident Analysis"
+output: html_document
+---
+
+## Load packages
+
+```{r}
+library(sf)
+library(tmap)
+library(tmaptools)
+library(tidyverse)
+library(car)
+library(janitor)
+library(tidymodels)
+library(spatialreg)
+library(spgwr)
+library(spdep)
+library(RColorBrewer)
+library(here)
+```
+
+
+## 1. Load map
+
+### Load parliamentary constituencies map uk
+#### Shapefile on github url:https://github.com/RuoxuanHong/GISAssessment/tree/main/Parliamentary_Constituencies
+```{r}
+parliamentaryconstituencies <- st_read(here::here("Westminster_Parliamentary_Constituencies", 
+                                 "Westminster_Parliamentary_Constituencies__December_2015__Boundaries.shp"))%>%
+  st_transform(., 27700)
+qtm(parliamentaryconstituencies)  
+```
+
+
+### load parliamentary constituencies map london
+```{r}
+londonparliamentaryconstituenciesmap <- parliamentaryconstituencies %>%
+  dplyr::filter(str_detect(pcon15cd, "E14000540")|
+                str_detect(pcon15cd, "E14000549")|
+                str_detect(pcon15cd, "E14000551")|
+                  str_detect(pcon15cd, "E14000553")|
+                  str_detect(pcon15cd, "E14000555")|
+                  str_detect(pcon15cd, "E14000558")|
+                  str_detect(pcon15cd, "E14000591")|
+                  str_detect(pcon15cd, "E14000592")|
+                  str_detect(pcon15cd, "E14000593")|
+                  str_detect(pcon15cd, "E14000604")|
+                  str_detect(pcon15cd, "E14000615")|
+                  str_detect(pcon15cd, "E14000621")|
+                  str_detect(pcon15cd, "E14000629")|
+                  str_detect(pcon15cd, "E14000634")|
+                  str_detect(pcon15cd, "E14000636")|
+                  str_detect(pcon15cd, "E14000639")|
+                  str_detect(pcon15cd, "E14000654")|
+                  str_detect(pcon15cd, "E14000655")|
+                  str_detect(pcon15cd, "E14000656")|
+                  str_detect(pcon15cd, "E14000657")|
+                  str_detect(pcon15cd, "E14000673")|
+                  str_detect(pcon15cd, "E14000674")|
+                  str_detect(pcon15cd, "E14000675")|
+                  str_detect(pcon15cd, "E14000676")|
+                  str_detect(pcon15cd, "E14000679")|
+                  str_detect(pcon15cd, "E14000687")|
+                  str_detect(pcon15cd, "E14000690")|
+                  str_detect(pcon15cd, "E14000691")|
+                  str_detect(pcon15cd, "E14000692")|
+                  str_detect(pcon15cd, "E14000696")|
+                  str_detect(pcon15cd, "E14000701")|
+                  str_detect(pcon15cd, "E14000703")|
+                  str_detect(pcon15cd, "E14000718")|
+                  str_detect(pcon15cd, "E14000720")|
+                  str_detect(pcon15cd, "E14000721")|
+                  str_detect(pcon15cd, "E14000726")|
+                  str_detect(pcon15cd, "E14000727")|
+                  str_detect(pcon15cd, "E14000731")|
+                  str_detect(pcon15cd, "E14000732")|
+                  str_detect(pcon15cd, "E14000737")|
+                  str_detect(pcon15cd, "E14000741")|
+                  str_detect(pcon15cd, "E14000750")|
+                  str_detect(pcon15cd, "E14000751")|
+                  str_detect(pcon15cd, "E14000752")|
+                  str_detect(pcon15cd, "E14000759")|
+                  str_detect(pcon15cd, "E14000760")|
+                  str_detect(pcon15cd, "E14000763")|
+                  str_detect(pcon15cd, "E14000764")|
+                  str_detect(pcon15cd, "E14000768")|
+                  str_detect(pcon15cd, "E14000770")|
+                  str_detect(pcon15cd, "E14000787")|
+                  str_detect(pcon15cd, "E14000788")|
+                  str_detect(pcon15cd, "E14000789")|
+                  str_detect(pcon15cd, "E14000790")|
+                  str_detect(pcon15cd, "E14000823")|
+                  str_detect(pcon15cd, "E14000869")|
+                  str_detect(pcon15cd, "E14000872")|
+                  str_detect(pcon15cd, "E14000882")|
+                  str_detect(pcon15cd, "E14000887")|
+                  str_detect(pcon15cd, "E14000896")|
+                  str_detect(pcon15cd, "E14000900")|
+                  str_detect(pcon15cd, "E14000906")|
+                  str_detect(pcon15cd, "E14000978")|
+                  str_detect(pcon15cd, "E14000984")|
+                  str_detect(pcon15cd, "E14000998")|
+                  str_detect(pcon15cd, "E14001002")|
+                  str_detect(pcon15cd, "E14001005")|
+                  str_detect(pcon15cd, "E14001007")|
+                  str_detect(pcon15cd, "E14001008")|
+                  str_detect(pcon15cd, "E14001013")|
+                  str_detect(pcon15cd, "E14001032")|
+                  str_detect(pcon15cd, "E14001036")|
+                  str_detect(pcon15cd, "E14001040"))%>%
+  st_transform(., 27700)
+
+  qtm(londonparliamentaryconstituenciesmap)
+```
+  
+  
+  
+## 2. Load traffic accident dataset
+
+#### csv file on Github url:https://github.com/RuoxuanHong/GISAssessment/raw/main/traffic_accident_data.csv
+```{r}
+  Trafficaccidentprofile <- read_csv("traffic_accident_data.csv", 
+                                 col_names = TRUE, 
+                                 locale = locale(encoding = 'Latin1'))
+```
+
+### Map traffic accident
+```{r}
+Trafficaccidentnumber <- londonparliamentaryconstituenciesmap%>%
+    left_join(.,
+              Trafficaccidentprofile, 
+              by = c("pcon15cd" = "Ons code"))
+  
+
+tmap_mode("view")
+  qtm(Trafficaccidentnumber, 
+      fill = "all_accidents", 
+      borders = NULL,  
+      fill.palette = "Blues")
+```
+  
+  
+  
+## 3. Traffic accidents data transformation
+
+### Distribution of traddic accidents
+```{r}
+Trafficaccidentnumber <- Trafficaccidentnumber %>%
+    clean_names()
+
+ggplot(Trafficaccidentnumber, aes(x=all_accidents)) + 
+    geom_histogram(aes(y = ..density..),
+                   binwidth = 100) + 
+    geom_density(colour="red", 
+                 size=1, 
+                 adjust=1)
+```
+
+### Tukey
+```{r}
+symbox(~all_accidents, 
+       Trafficaccidentnumber, 
+       na.rm=T,
+       powers=seq(-3,3,by=.25)) 
+```
+
+### Plot transformed dependent variable distribution
+```{r}
+ggplot(Trafficaccidentnumber, aes((x=all_accidents)^-0.75) )+ 
+  geom_histogram(aes(y = ..density..),
+                 binwidth = 0.003) + 
+  geom_density(colour="red", 
+               size=1, 
+               adjust=1)
+```
+
+
+
+## 4. Spatial Weight matrix
+
+###Calculate the centroids of all parliamentary constituencies
+```{r}
+coordsW <- Trafficaccidentnumber%>%
+  st_centroid()%>%
+  st_geometry()
+
+plot(coordsW)
+```
+
+### Queen's case and nerest neighbours comparison
+```{r}
+LWard_nb <- Trafficaccidentnumber %>%
+  poly2nb(., queen=T)
+
+
+knn_wards <-coordsW %>%
+  knearneigh(., k=4)
+
+LWard_knn <- knn_wards %>%
+  knn2nb()
+
+plot(LWard_nb, st_geometry(coordsW), col="red")
+
+plot(LWard_knn, st_geometry(coordsW), col="blue")
+```
+
+### KNN4 spatial weight matrix
+```{r}
+Lward.knn_4_weight <- LWard_knn %>%
+  nb2listw(., style="C")
+```
+
+
+## 5. traffic accident spatial analysis
+
+### Moran's I
+```{r}
+Trafficaccidentnumbermoran <- Trafficaccidentnumber %>%
+  st_drop_geometry()%>%
+  dplyr::select(all_accidents)%>%
+  pull()%>%
+  moran.test(., Lward.knn_4_weight)
+Trafficaccidentnumbermoran
+```
+
+
+### Traffic accident Geary's C
+```{r}
+TrafficaccidentnumberGeary <- Trafficaccidentnumber %>%
+  st_drop_geometry()%>%
+  dplyr::select(all_accidents)%>%
+  pull()%>%
+  geary.test(., Lward.knn_4_weight)
+TrafficaccidentnumberGeary
+```
+
+
+### Getis Ord General G
+```{r}
+TrafficaccidentnumberG <- Trafficaccidentnumber %>%
+  st_drop_geometry()%>%
+  dplyr::select(all_accidents)%>%
+  pull()%>%
+  globalG.test(., Lward.knn_4_weight)
+TrafficaccidentnumberG
+```
+
+
+### local Moran's I
+```{r}
+Trafficaccidentnumberlocalmoran <- Trafficaccidentnumber %>%
+  st_drop_geometry()%>%
+  dplyr::select(all_accidents)%>%
+  pull()%>%
+  localmoran(., Lward.knn_4_weight)%>%
+  as_tibble()
+Trafficaccidentnumberlocalmoran
+```
+
+### Map local Moran's I
+```{r}
+Trafficaccidentnumber <- Trafficaccidentnumber %>%
+  mutate(all_accidents_I = as.numeric(Trafficaccidentnumberlocalmoran$Ii))%>%
+  mutate(all_accidents_Iz =as.numeric(Trafficaccidentnumberlocalmoran$Z.Ii))
+
+# set the breaks and colour
+breaks1<-c(-1000,-2.58,-1.96,-1.65,1.65,1.96,2.58,1000)
+MoranColours<- rev(brewer.pal(8, "RdGy"))
+
+# Local Moran's I map
+tm_shape(Trafficaccidentnumber) +
+  tm_polygons("all_accidents_Iz",
+              style="fixed",
+              breaks=breaks1,
+              palette=MoranColours,
+              midpoint=NA,
+              title="Local Moran's I, Traffic Accidents in London")
+```
+
+### Local G map
+```{r}
+TrafficaccidentnumberGi <- Trafficaccidentnumber %>%
+  st_drop_geometry()%>%
+  dplyr::select(all_accidents)%>%
+  pull()%>%
+  localG(., Lward.knn_4_weight)
+TrafficaccidentnumberGi
+
+
+Trafficaccidentnumber <- Trafficaccidentnumber %>%
+  mutate(all_accidents_G = as.numeric(TrafficaccidentnumberGi))
+
+GIColours<- rev(brewer.pal(8, "RdBu"))
+
+# plot
+tm_shape(Trafficaccidentnumber) +
+  tm_polygons("all_accidents_G",
+              style="fixed",
+              breaks=breaks1,
+              palette=GIColours,
+              midpoint=NA,
+              title="Gi*, Traffic Accidents in London")
+```
+
+
+
+## 6. Multiple Linear regression
+
+### Model 1
+```{r}
+Regressiondata<- Trafficaccidentnumber%>%
+  clean_names()%>%
+  dplyr::select(all_accidents, 
+                cars_per_household,
+                travel_by_bicycle_to_work,
+                employment_rate,
+                public_transport_accessibility,
+                population_density,
+                area_of_road)
+
+model1 <- Regressiondata %>%
+  lm(all_accidents^-0.75 ~
+       cars_per_household+
+       travel_by_bicycle_to_work+
+       employment_rate+
+       public_transport_accessibility+
+       population_density+
+       area_of_road,
+     data=.)
+summary(model1)
+```
+
+
+
+### vif test
+```{r}
+vif(model1)
+```
+
+
+### Model2
+```{r}
+model2 <- Regressiondata %>%
+  lm(all_accidents^-0.75 ~
+       cars_per_household+
+       travel_by_bicycle_to_work+
+       employment_rate+
+       public_transport_accessibility,
+     data=.)
+summary(model2)
+```
+
+
+### Model3
+```{r}
+model3 <- Regressiondata %>%
+  lm(all_accidents^-0.75 ~
+       employment_rate+
+       public_transport_accessibility,
+     data=.)
+summary(model3)
+```
+
+
+### Lagrange Multiplier Diagnostics
+```{r}
+lm.LMtests(model3,Lward.knn_4_weight, zero.policy=NULL, test="all", spChk=NULL, naSubset=TRUE)
+```
+
+
+### Print some model diagnositcs. 
+```{r}
+par(mfrow=c(2,2))
+plot(model3)
+```
+
+
+### Durbin-Watson test
+```{r}
+DW <- durbinWatsonTest(model3)
+tidy(DW)
+```
+
+
+### Write the residuals outand add them to the shapelayer
+```{r}
+model_data3 <- model3 %>%
+  augment(., Regressiondata)
+
+
+Trafficaccidentnumber <- Trafficaccidentnumber %>%
+  mutate(model3resids = residuals(model3))
+```
+
+
+## 7. SLM and SEM to include spatial elements
+
+### plot the residuals
+```{r}
+tmap_mode("view")
+
+tm_shape(Trafficaccidentnumber) +
+  tm_polygons("model3resids",
+              palette = "RdYlBu")
+```
+
+
+### residual moran's I
+```{r}
+Nearest_neighbour <- Trafficaccidentnumber %>%
+  st_drop_geometry()%>%
+  dplyr::select(model3resids)%>%
+  pull()%>%
+  moran.test(., Lward.knn_4_weight)%>%
+  tidy()
+
+Nearest_neighbour
+```
+
+
+
+### Spatially lagged model
+```{r}
+slag_dv_model3_knn4 <- lagsarlm(all_accidents^-0.75 ~
+                                  employment_rate+
+                                  public_transport_accessibility,
+                                data=Trafficaccidentnumber, 
+                                nb2listw(LWard_knn, 
+                                         style="C"), 
+                                method = "eigen")
+
+summary(slag_dv_model3_knn4)
+```
+
+
+#### Residual Moran test on SLM
+```{r}
+Trafficaccidentnumber <- Trafficaccidentnumber %>%
+  mutate(slag_dv_model3_knn_resids = residuals(slag_dv_model3_knn4))
+
+KNN4Moran <- Trafficaccidentnumber %>%
+  st_drop_geometry()%>%
+  dplyr::select(slag_dv_model3_knn_resids)%>%
+  pull()%>%
+  moran.test(., Lward.knn_4_weight)%>%
+  tidy()
+KNN4Moran
+```
+
+
+### Spatial error model
+```{r}
+sem_model1 <- errorsarlm(all_accidents^-0.75 ~
+                           employment_rate+
+                           public_transport_accessibility,
+                         data=Trafficaccidentnumber,
+                         nb2listw(LWard_knn, style="C"), 
+                         method = "eigen")
+
+tidy(sem_model1)
+summary(sem_model1)
+```
+
+#### Residual Moran test on SEM
+```{r}
+Trafficaccidentnumber <- Trafficaccidentnumber %>%
+  mutate(sem_model1 = residuals(sem_model1))
+
+KNN4Moranerr <- Trafficaccidentnumber %>%
+  st_drop_geometry()%>%
+  dplyr::select(sem_model1)%>%
+  pull()%>%
+  moran.test(., Lward.knn_4_weight)%>%
+  tidy()
+KNN4Moranerr
+```
+
+
+## 8. GWR
+
+#### Transformation
+```{r}
+st_crs(Trafficaccidentnumber) = 27700
+
+TrafficaccidentnumberSP <- Trafficaccidentnumber %>%
+  as(., "Spatial")
+
+st_crs(coordsW) = 27700
+
+coordsWSP <- coordsW %>%
+  as(., "Spatial")
+coordsWSP
+```
+
+### Calculate kernel bandwidth
+```{r}
+GWRbandwidth <- gwr.sel(all_accidents^-0.75 ~
+                          employment_rate+
+                          public_transport_accessibility, 
+                        data = TrafficaccidentnumberSP, 
+                        coords=coordsWSP,
+                        adapt=T)
+```
+
+### Run the gwr model
+```{r}
+gwr.model = gwr(all_accidents^-0.75 ~
+                  employment_rate+
+                  public_transport_accessibility, 
+                data = TrafficaccidentnumberSP, 
+                coords=coordsWSP, 
+                adapt=GWRbandwidth, 
+                hatmatrix=TRUE, 
+                se.fit=TRUE)
+
+gwr.model
+```
+
+
+```{r}
+results <- as.data.frame(gwr.model$SDF)
+names(results)
+```
+
+
+### Attach coefficients to original SF
+```{r}
+Trafficaccidentnumber2 <- Trafficaccidentnumber %>%
+  mutate(coefEmployment = results$employment_rate,
+         coefTransport = results$public_transport_accessibility)
+```
+
+### Employment rate coefficient plot
+```{r}
+tm_shape(Trafficaccidentnumber2) +
+  tm_polygons(col = "coefEmployment", 
+              palette = "-RdBu", 
+              alpha = 0.9)
+```
+
+### Public transport accessbility coefficient plot
+```{r}
+tm_shape(Trafficaccidentnumber2) +
+  tm_polygons(col = "coefTransport", 
+              palette = "RdBu", 
+              alpha = 0.9)
+```
+
+
+### Run the significance test
+```{r}
+sigTest = abs(gwr.model$SDF$"public_transport_accessibility")-2 * gwr.model$SDF$"public_transport_accessibility_se"
+sigTest1 = abs(gwr.model$SDF$"employment_rate")-2 * gwr.model$SDF$"employment_rate_se"
+```
+
+### Store significance results
+```{r}
+Trafficaccidentnumber2 <- Trafficaccidentnumber2 %>%
+  mutate(GWREmploymentSig = sigTest)
+
+tm_shape(Trafficaccidentnumber2) +
+  tm_polygons(col = "GWREmploymentSig", 
+              palette = "RdYlBu")
+```
